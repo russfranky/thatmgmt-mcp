@@ -111,15 +111,16 @@ describe("callTool routing", () => {
     });
   });
 
-  it("passes the transfer auth code through the dry-run body", async () => {
+  it("passes authCodePresent (never the raw code) through the dry-run body", async () => {
     const client = stubClient();
     await callTool(client, "orders_dry_run", {
       action: "domains.transfer",
       fqdn: "example.com",
-      authCode: "code-123",
+      authCodePresent: true,
     });
     assert.equal(client.calls[0].method, "POST");
-    assert.equal(client.calls[0].json.authCode, "code-123");
+    assert.equal(client.calls[0].json.authCodePresent, true);
+    assert.ok(!("authCode" in client.calls[0].json), "raw code never sent");
   });
 
   it("orders_dry_run description says it never moves money", async () => {

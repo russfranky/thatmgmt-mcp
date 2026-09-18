@@ -166,8 +166,9 @@ export const TOOL_DEFS = [
       "plan with itemized pricing (wholesale plus the platform fee as separate lines), " +
       "the readiness checklist with machine-readable reason codes, what is still gated, " +
       "and the next steps. The total shown is the locked total your approval binds to. " +
-      "Never moves money and never touches the supplier. For transfers, pass the " +
-      "authorization code only to check readiness; it is presence-checked, never stored. " +
+      "Never moves money and never touches the supplier. For transfers, pass " +
+      "authCodePresent: true to show you hold the authorization code; the API " +
+      "never accepts the raw code. " +
       EXECUTE_GAP_NOTE,
     inputSchema: {
       type: "object",
@@ -182,13 +183,13 @@ export const TOOL_DEFS = [
           type: "integer",
           minimum: 1,
           maximum: 10,
-          description: "Registration/renewal period in years (default 1)",
+          description: "Registration/renewal period in years, 1-10 (default 1)",
         },
-        authCode: {
-          type: "string",
+        authCodePresent: {
+          type: "boolean",
           description:
-            "Transfer authorization code (transfer only). Presence-checked for readiness; " +
-            "never logged or stored by the API.",
+            "Transfer only: true when you hold the transfer authorization code. " +
+            "The raw code is never sent; the API rejects it.",
         },
       },
       required: ["action", "fqdn"],
@@ -199,7 +200,7 @@ export const TOOL_DEFS = [
     params: (a) => {
       const body = { action: a.action, fqdn: a.fqdn };
       if (a.periodYears !== undefined) body.periodYears = a.periodYears;
-      if (a.authCode !== undefined) body.authCode = a.authCode;
+      if (a.authCodePresent !== undefined) body.authCodePresent = a.authCodePresent;
       return body;
     },
   },
