@@ -1,0 +1,51 @@
+name: Publish to MCP Registry
+
+# Publishes server.json to the official MCP registry when a version tag is pushed.
+# Uses GitHub OIDC, so no stored secrets and no browser login are needed.
+# The io.github.russfranky namespace is verified automatically for this repo.
+#
+# Release flow:
+#   1. Bump version in package.json and server.json (they must match the tag).
+#   2. git tag v0.2.0 && git push origin v0.2.0
+# The workflow validates server.json against the registry schema, then publishes.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Set version in server.json
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "tag version $VERSION does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
+          cat server.json
+
+      - name: Validate server.json
+        run: |
+          npm install -g ajv-cli
+          ajv validate -s https://raw.githubusercontent.com/modelcontextprotocol/registry/main/schema/server/v1.json -d server.json --spec=draft2020
+
+      - name: Login and publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
