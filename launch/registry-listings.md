@@ -15,7 +15,7 @@ capability the API does not have yet.
   design. This MCP server wraps the API so an AI agent can check domain
   availability, get name suggestions, lock a price quote, and prepare a
   registration plan without touching a dashboard. Pricing is wholesale plus
-  10% on registrations, renewals, and transfers, with no subscription and no
+  1% on registrations, renewals, and transfers, with no subscription and no
   tiers. Crypto checkout (USDC, ETH, SOL) or card. Anything that would spend
   money uses a two-step approval: the agent shows the human the locked price
   first, and nothing moves without an explicit approval. The server never
@@ -37,10 +37,10 @@ capability the API does not have yet.
   OIDC (no browser, no stored secret), and publishes. Namespace
   io.github.russfranky is verified automatically for this repo.
 - Blockers before first publish:
-  1. The npm package @thingscorp/thatmgmt-mcp must exist on the public npm
+  1. The npm package @thatmgmt/mcp must exist on the public npm
      registry, because the manifest references it. One-time owner step, free:
      `cd ~/workspace/thatmgmt-mcp && npm publish --access public`
-     (needs npm access for the @thingscorp scope).
+     (needs npm access for the @thatmgmt scope).
   2. Per the sequencing rule, publish the execute-live 0.2.0 manifest, not
      this 0.1.0 read-only one, unless end of day arrives first.
 - Upgrade path when execute ships: add the execute tools behind the approval

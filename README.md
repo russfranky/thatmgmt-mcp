@@ -101,7 +101,7 @@ npm test   # 25 tests, mocked HTTP, no live calls
 pushed; the workflow validates the manifest against the registry schema and
 authenticates the namespace via GitHub OIDC, so no manual login is needed.
 
-Prerequisite the workflow cannot do itself: the `@thingscorp/thatmgmt-mcp`
+Prerequisite the workflow cannot do itself: the `@thatmgmt/mcp`
 npm package must exist on the public npm registry before the first publish,
 since the manifest references it. Publish it once with `npm publish`
-(requires npm access for the `@thingscorp` scope), then push the version tag.
+(requires npm access for the `@thatmgmt` scope), then push the version tag.
