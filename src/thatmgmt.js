@@ -68,14 +68,19 @@ export function createClient({ fetchFn = globalThis.fetch, env = process.env } =
     }
   }
 
-  async function request(path, { params = {}, method = "GET" } = {}) {
+  async function request(path, { params = {}, method = "GET", json } = {}) {
     const url = new URL(baseUrl + path);
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
     }
+    const init = { method, headers: headers() };
+    if (json !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(json);
+    }
     let res;
     try {
-      res = await fetchFn(url.toString(), { method, headers: headers() });
+      res = await fetchFn(url.toString(), init);
     } catch (err) {
       throw new ThatMgmtError(`Network error calling ThatMgmt API: ${redact(err.message)}`, {
         retryable: true,
@@ -101,6 +106,7 @@ export function createClient({ fetchFn = globalThis.fetch, env = process.env } =
 
   return {
     get: (path, params) => request(path, { params }),
+    post: (path, json) => request(path, { method: "POST", json }),
     health: () => request("/health/live"),
   };
 }

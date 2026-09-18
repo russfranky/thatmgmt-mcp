@@ -11,8 +11,12 @@ function stubClient() {
   return {
     calls,
     get: async (path, params) => {
-      calls.push({ path, params });
+      calls.push({ method: "GET", path, params });
       return { path, params };
+    },
+    post: async (path, json) => {
+      calls.push({ method: "POST", path, json });
+      return { path, json };
     },
   };
 }
@@ -28,6 +32,7 @@ describe("TOOL_DEFS", () => {
       "domains_prepare_registration",
       "domains_suggest",
       "offerings",
+      "orders_dry_run",
       "portfolio_exceptions",
       "portfolio_health",
       "portfolio_renewal_risk",
@@ -49,9 +54,10 @@ describe("TOOL_DEFS", () => {
     assert.match(t.description, /show .* human/i);
   });
 
-  it("quote description documents the two-step flow", () => {
+  it("quote description is honest about the missing platform fee", () => {
     const t = TOOL_DEFS.find((d) => d.name === "domains_get_quote");
-    assert.match(t.description, /Step 1/i);
+    assert.match(t.description, /WITHOUT the platform fee/i);
+    assert.match(t.description, /orders_dry_run/);
   });
 });
 
@@ -63,6 +69,7 @@ describe("callTool routing", () => {
       optimizeFor: "ACCURACY",
     });
     assert.deepEqual(client.calls[0], {
+      method: "GET",
       path: "/v1/domains/availability",
       params: { domain: "example.com", optimizeFor: "ACCURACY" },
     });
@@ -72,6 +79,7 @@ describe("callTool routing", () => {
     const client = stubClient();
     await callTool(client, "domains_get_quote", { domain: "example.com", period: 2 });
     assert.deepEqual(client.calls[0], {
+      method: "GET",
       path: "/v1/domains/quote",
       params: { domain: "example.com", period: 2 },
     });
@@ -87,6 +95,37 @@ describe("callTool routing", () => {
     const client = stubClient();
     await callTool(client, "domains_dns", { resourceId: "dom 123", type: "A" });
     assert.equal(client.calls[0].path, "/v1/domains/dom%20123/dns");
+  });
+
+  it("routes orders_dry_run as a POST with a JSON body", async () => {
+    const client = stubClient();
+    await callTool(client, "orders_dry_run", {
+      action: "domains.register",
+      fqdn: "example.com",
+      periodYears: 2,
+    });
+    assert.deepEqual(client.calls[0], {
+      method: "POST",
+      path: "/v1/orders/dry-run",
+      json: { action: "domains.register", fqdn: "example.com", periodYears: 2 },
+    });
+  });
+
+  it("passes the transfer auth code through the dry-run body", async () => {
+    const client = stubClient();
+    await callTool(client, "orders_dry_run", {
+      action: "domains.transfer",
+      fqdn: "example.com",
+      authCode: "code-123",
+    });
+    assert.equal(client.calls[0].method, "POST");
+    assert.equal(client.calls[0].json.authCode, "code-123");
+  });
+
+  it("orders_dry_run description says it never moves money", async () => {
+    const t = TOOL_DEFS.find((d) => d.name === "orders_dry_run");
+    assert.match(t.description, /never moves money/i);
+    assert.match(t.description, /locked total/i);
   });
 
   it("rejects unknown tools", async () => {

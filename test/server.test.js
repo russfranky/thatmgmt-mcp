@@ -98,7 +98,8 @@ describe("MCP server over stdio", () => {
       assert.ok(names.includes("domains_check_availability"));
       assert.ok(names.includes("domains_get_quote"));
       assert.ok(names.includes("domains_prepare_registration"));
-      assert.equal(names.length, 11);
+      assert.ok(names.includes("orders_dry_run"));
+      assert.equal(names.length, 12);
 
       const call = await send("tools/call", {
         name: "domains_check_availability",

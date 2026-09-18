@@ -5,8 +5,11 @@
 // Spend-effect actions (register, renew, transfer) have NO execute endpoints
 // in the API: purchase, renewal, transfer, and DNS changes are never executed.
 // The closest real flow is:
-//   1. domains_get_quote -> locked price (totalPayableCents + feeFingerprint)
-//   2. domains_prepare_registration -> safety-checked plan (never executes)
+//   orders_dry_run -> one call, full plan: itemized pricing (wholesale plus
+//     the platform fee), readiness checklist, gated state, next steps.
+//     The total shown is the locked total the approval binds to.
+//   (legacy two-step) domains_get_quote -> supplier quote (no platform fee)
+//     then domains_prepare_registration -> safety-checked plan.
 // Show the human the plan first. Execution happens outside this server until
 // the API exposes execute routes.
 
@@ -63,11 +66,10 @@ export const TOOL_DEFS = [
   {
     name: "domains_get_quote",
     description:
-      "Get a locked price quote for registering a domain, without purchasing anything. " +
-      "Step 1 of the two-step purchase flow. The quote binds the approved total " +
-      "(totalPayableCents) and fee fingerprint, so the price you approve is the price " +
-      "that executes. Show the quote to the human before doing anything else. " +
-      "Pricing: no subscription; a flat 10% cut applies to registrations only.",
+      "Get the supplier price quote for registering a domain, without purchasing anything. " +
+      "Read-only. Note: this is the supplier total WITHOUT the platform fee. " +
+      "For the final price the approval binds to (wholesale plus the platform fee, itemized), " +
+      "use orders_dry_run instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -158,6 +160,50 @@ export const TOOL_DEFS = [
     params: () => ({}),
   },
   {
+    name: "orders_dry_run",
+    description:
+      "Plan a domain order in one call: register, renew, or transfer. Returns the full " +
+      "plan with itemized pricing (wholesale plus the platform fee as separate lines), " +
+      "the readiness checklist with machine-readable reason codes, what is still gated, " +
+      "and the next steps. The total shown is the locked total your approval binds to. " +
+      "Never moves money and never touches the supplier. For transfers, pass the " +
+      "authorization code only to check readiness; it is presence-checked, never stored. " +
+      EXECUTE_GAP_NOTE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["domains.register", "domains.renew", "domains.transfer"],
+          description: "The order action to plan",
+        },
+        fqdn: { type: "string", description: "Fully qualified domain name, e.g. example.com" },
+        periodYears: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          description: "Registration/renewal period in years (default 1)",
+        },
+        authCode: {
+          type: "string",
+          description:
+            "Transfer authorization code (transfer only). Presence-checked for readiness; " +
+            "never logged or stored by the API.",
+        },
+      },
+      required: ["action", "fqdn"],
+      additionalProperties: false,
+    },
+    method: "POST",
+    path: "/v1/orders/dry-run",
+    params: (a) => {
+      const body = { action: a.action, fqdn: a.fqdn };
+      if (a.periodYears !== undefined) body.periodYears = a.periodYears;
+      if (a.authCode !== undefined) body.authCode = a.authCode;
+      return body;
+    },
+  },
+  {
     name: "offerings",
     description:
       "Reseller offering coverage matrix: every supplier family, its exposed routes, " +
@@ -173,5 +219,8 @@ export async function callTool(client, name, args) {
   const def = TOOL_DEFS.find((t) => t.name === name);
   if (!def) throw new Error(`Unknown tool: ${name}`);
   const path = typeof def.path === "function" ? def.path(args) : def.path;
+  if (def.method === "POST") {
+    return client.post(path, def.params(args));
+  }
   return client.get(path, def.params(args));
 }
