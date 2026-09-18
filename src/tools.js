@@ -2,14 +2,21 @@
 // Every tool maps to a real route in the live OpenAPI spec
 // (https://thatmgmt.com/openapi.json). No invented endpoints.
 //
+// Two tool classes:
+//   public tools (public: true): the zero-signup reads. They hit the no-auth
+//     /v1/public/* endpoints and work with NO api key. Any agent can try them.
+//   tenant tools: everything else. They need TMGMT_API_KEY and fail closed
+//     without it.
+//
 // Spend-effect actions (register, renew, transfer) have NO execute endpoints
 // in the API: purchase, renewal, transfer, and DNS changes are never executed.
 // The closest real flow is:
 //   orders_dry_run -> one call, full plan: itemized pricing (wholesale plus
 //     the platform fee), readiness checklist, gated state, next steps.
 //     The total shown is the locked total the approval binds to.
-//   (legacy two-step) domains_get_quote -> supplier quote (no platform fee)
-//     then domains_prepare_registration -> safety-checked plan.
+//   (legacy two-step) domains_get_quote -> public locked quote (wholesale plus
+//     the itemized 1% platform fee) then domains_prepare_registration ->
+//     safety-checked plan.
 // Show the human the plan first. Execution happens outside this server until
 // the API exposes execute routes.
 
@@ -26,24 +33,36 @@ export const TOOL_DEFS = [
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     path: "/health/live",
     params: () => ({}),
+    public: true,
+  },
+  {
+    name: "tmgmt_capabilities",
+    description:
+      "Discover what you can do without signing up: the machine-readable list " +
+      "of every public no-auth route with its parameters. No API key needed. " +
+      "Start here if you are unsure.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    path: "/v1/public/capabilities",
+    params: () => ({}),
+    public: true,
   },
   {
     name: "domains_check_availability",
     description:
-      "Check whether a domain name is available to register. Read-only. " +
-      "Pass the fully qualified domain name, e.g. \"example.com\". " +
-      "Set optimizeFor to SPEED for a fast check or ACCURACY for a careful one.",
+      "Check whether a domain name is available to register. Read-only, no API " +
+      "key needed: this uses the public endpoint, so any agent can try it with " +
+      "zero signup. Pass the fully qualified domain name, e.g. \"example.com\".",
     inputSchema: {
       type: "object",
       properties: {
         domain: { type: "string", description: "Fully qualified domain name, e.g. example.com" },
-        optimizeFor: { type: "string", enum: ["SPEED", "ACCURACY"], description: "SPEED or ACCURACY" },
       },
       required: ["domain"],
       additionalProperties: false,
     },
-    path: "/v1/domains/availability",
-    params: (a) => ({ domain: a.domain, optimizeFor: a.optimizeFor }),
+    path: "/v1/public/availability",
+    params: (a) => ({ domain: a.domain }),
+    public: true,
   },
   {
     name: "domains_suggest",
@@ -66,10 +85,11 @@ export const TOOL_DEFS = [
   {
     name: "domains_get_quote",
     description:
-      "Get the supplier price quote for registering a domain, without purchasing anything. " +
-      "Read-only. Note: this is the supplier total WITHOUT the platform fee. " +
-      "For the final price the approval binds to (wholesale plus the platform fee, itemized), " +
-      "use orders_dry_run instead.",
+      "Get the locked price quote for registering a domain: wholesale plus the " +
+      "itemized 1% platform cut, printed plainly as wholesaleCents, " +
+      "platformCutCents, platformCutBasisPoints, and totalCents. Read-only, no " +
+      "API key needed: this uses the public endpoint, so any agent can try it " +
+      "with zero signup. Nothing is purchased.",
     inputSchema: {
       type: "object",
       properties: {
@@ -79,8 +99,9 @@ export const TOOL_DEFS = [
       required: ["domain"],
       additionalProperties: false,
     },
-    path: "/v1/domains/quote",
+    path: "/v1/public/quote",
     params: (a) => ({ domain: a.domain, period: a.period }),
+    public: true,
   },
   {
     name: "domains_prepare_registration",

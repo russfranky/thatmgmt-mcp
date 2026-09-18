@@ -13,21 +13,42 @@ const serverPath = path.join(here, "..", "src", "index.js");
 
 let api;
 let apiPort;
-let seenAuth;
+let seenAuthByPath;
 
 before(async () => {
   api = http.createServer((req, res) => {
-    seenAuth = req.headers.authorization;
     const url = new URL(req.url, "http://x");
+    seenAuthByPath[url.pathname] = req.headers.authorization;
     let body = {};
-    if (url.pathname === "/v1/domains/availability") {
-      body = { domain: url.searchParams.get("domain"), available: true };
+    if (url.pathname === "/v1/public/availability") {
+      body = {
+        action: "public.availability",
+        domain: url.searchParams.get("domain"),
+        available: true,
+        definitive: true,
+      };
+    } else if (url.pathname === "/v1/public/quote") {
+      body = {
+        action: "public.quote",
+        domain: url.searchParams.get("domain"),
+        periodYears: 1,
+        available: true,
+        currency: "USD",
+        wholesaleCents: 1299,
+        fees: [{ type: "platform_cut", amountCents: 13 }],
+        platformCutCents: 13,
+        platformCutBasisPoints: 100,
+        totalCents: 1312,
+      };
+    } else if (url.pathname === "/v1/public/capabilities") {
+      body = { action: "public.capabilities", routes: [] };
     } else if (url.pathname === "/health/live") {
       body = { status: "ok" };
     }
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify(body));
   });
+  seenAuthByPath = {};
   await new Promise((resolve) => api.listen(0, "127.0.0.1", resolve));
   apiPort = api.address().port;
 });
@@ -97,9 +118,10 @@ describe("MCP server over stdio", () => {
       const names = list.result.tools.map((t) => t.name);
       assert.ok(names.includes("domains_check_availability"));
       assert.ok(names.includes("domains_get_quote"));
+      assert.ok(names.includes("tmgmt_capabilities"));
       assert.ok(names.includes("domains_prepare_registration"));
       assert.ok(names.includes("orders_dry_run"));
-      assert.equal(names.length, 12);
+      assert.equal(names.length, 13);
 
       const call = await send("tools/call", {
         name: "domains_check_availability",
@@ -109,13 +131,40 @@ describe("MCP server over stdio", () => {
       const text = call.result.content[0].text;
       assert.match(text, /example\.com/);
       assert.match(text, /"available": true/);
-      assert.equal(seenAuth, "Bearer test-key-123");
+      assert.equal(seenAuthByPath["/v1/public/availability"], "Bearer test-key-123");
     } finally {
       child.kill();
     }
   });
 
-  it("refuses authenticated tools without an API key", async () => {
+  it("public reads work with no API key and send no Authorization header", async () => {
+    const { child, send, notify } = startServer({
+      TMGMT_BASE_URL: `http://127.0.0.1:${apiPort}`,
+    });
+    try {
+      await send("initialize", {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "test", version: "0" },
+      });
+      notify("notifications/initialized", {});
+      for (const [name, args, path, field] of [
+        ["tmgmt_health", {}, "/health/live", '"status": "ok"'],
+        ["tmgmt_capabilities", {}, "/v1/public/capabilities", "public.capabilities"],
+        ["domains_check_availability", { domain: "example.com" }, "/v1/public/availability", '"available": true'],
+        ["domains_get_quote", { domain: "example.com" }, "/v1/public/quote", '"totalCents": 1312'],
+      ]) {
+        const call = await send("tools/call", { name, arguments: args });
+        assert.equal(call.result.isError, undefined, `${name} should work without a key`);
+        assert.match(call.result.content[0].text, new RegExp(field), `${name} body`);
+        assert.equal(seenAuthByPath[path], undefined, `${name} must not send a key it does not have`);
+      }
+    } finally {
+      child.kill();
+    }
+  });
+
+  it("refuses tenant tools without an API key", async () => {
     const { child, send, notify } = startServer({
       TMGMT_BASE_URL: `http://127.0.0.1:${apiPort}`,
     });
@@ -127,8 +176,8 @@ describe("MCP server over stdio", () => {
       });
       notify("notifications/initialized", {});
       const call = await send("tools/call", {
-        name: "domains_get_quote",
-        arguments: { domain: "example.com" },
+        name: "domains_suggest",
+        arguments: { query: "example" },
       });
       assert.equal(call.result.isError, true);
       assert.match(call.result.content[0].text, /TMGMT_API_KEY/);

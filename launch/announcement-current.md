@@ -14,7 +14,7 @@ What works today:
   crypto order gets a unique deposit address. No card or bank account is needed
   to pay in crypto.
 
-Pricing is simple. Wholesale cost plus 10% on registrations, renewals, and
+Pricing is simple. Wholesale cost plus 1% on registrations, renewals, and
 transfers. No subscription. No tiers. No upsells.
 
 For agents: thatmgmt-mcp is an open source MCP server that wraps the API. An

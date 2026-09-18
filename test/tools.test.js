@@ -36,6 +36,7 @@ describe("TOOL_DEFS", () => {
       "portfolio_exceptions",
       "portfolio_health",
       "portfolio_renewal_risk",
+      "tmgmt_capabilities",
       "tmgmt_health",
     ]);
   });
@@ -54,35 +55,85 @@ describe("TOOL_DEFS", () => {
     assert.match(t.description, /show .* human/i);
   });
 
-  it("quote description is honest about the missing platform fee", () => {
+  it("quote description documents the itemized 1% cut fields", () => {
     const t = TOOL_DEFS.find((d) => d.name === "domains_get_quote");
-    assert.match(t.description, /WITHOUT the platform fee/i);
-    assert.match(t.description, /orders_dry_run/);
+    assert.match(t.description, /wholesaleCents/);
+    assert.match(t.description, /platformCutCents/);
+    assert.match(t.description, /totalCents/);
+    assert.match(t.description, /no API key needed/i);
+  });
+
+  it("exactly the zero-signup tools are marked public", () => {
+    const publicNames = TOOL_DEFS.filter((t) => t.public).map((t) => t.name).sort();
+    assert.deepEqual(publicNames, [
+      "domains_check_availability",
+      "domains_get_quote",
+      "tmgmt_capabilities",
+      "tmgmt_health",
+    ]);
+  });
+
+  it("tenant tools are not marked public", () => {
+    for (const name of ["domains_suggest", "domains_list", "orders_dry_run", "offerings"]) {
+      const t = TOOL_DEFS.find((d) => d.name === name);
+      assert.equal(t.public, undefined, `${name} must require the key`);
+    }
   });
 });
 
 describe("callTool routing", () => {
-  it("routes availability with domain and optimizeFor", async () => {
+  it("routes availability to the public endpoint with domain only", async () => {
     const client = stubClient();
-    await callTool(client, "domains_check_availability", {
-      domain: "example.com",
-      optimizeFor: "ACCURACY",
-    });
+    await callTool(client, "domains_check_availability", { domain: "example.com" });
     assert.deepEqual(client.calls[0], {
       method: "GET",
-      path: "/v1/domains/availability",
-      params: { domain: "example.com", optimizeFor: "ACCURACY" },
+      path: "/v1/public/availability",
+      params: { domain: "example.com" },
     });
   });
 
-  it("routes quote with period", async () => {
+  it("routes quote to the public endpoint with period", async () => {
     const client = stubClient();
     await callTool(client, "domains_get_quote", { domain: "example.com", period: 2 });
     assert.deepEqual(client.calls[0], {
       method: "GET",
-      path: "/v1/domains/quote",
+      path: "/v1/public/quote",
       params: { domain: "example.com", period: 2 },
     });
+  });
+
+  it("routes capabilities to the public endpoint with no params", async () => {
+    const client = stubClient();
+    await callTool(client, "tmgmt_capabilities", {});
+    assert.deepEqual(client.calls[0], {
+      method: "GET",
+      path: "/v1/public/capabilities",
+      params: {},
+    });
+  });
+
+  it("passes the public quote body through with wholesale, cut, and total", async () => {
+    const fixture = {
+      action: "public.quote",
+      domain: "example.com",
+      periodYears: 1,
+      available: true,
+      currency: "USD",
+      wholesaleCents: 1299,
+      fees: [{ type: "platform_cut", amountCents: 13 }],
+      platformCutCents: 13,
+      platformCutBasisPoints: 100,
+      totalCents: 1312,
+    };
+    const client = { get: async () => fixture, post: async () => ({}) };
+    const result = await callTool(client, "domains_get_quote", { domain: "example.com" });
+    assert.equal(result.wholesaleCents, 1299);
+    assert.equal(result.platformCutCents, 13);
+    assert.equal(result.platformCutBasisPoints, 100);
+    assert.equal(result.totalCents, 1312);
+    assert.equal(result.wholesaleCents + result.platformCutCents, result.totalCents);
+    assert.ok(!("providerQuoteToken" in result), "no provider token leaks");
+    assert.ok(!("providerQuoteTokenPresent" in result), "no provider token presence leaks");
   });
 
   it("routes prepare-registration to the plan endpoint", async () => {

@@ -15,14 +15,14 @@ own brand.
 What you can do:
 
 - Check domain availability in real time.
-- Lock a price quote. The quote shows the full amount: wholesale plus 10%.
+- Lock a price quote. The quote shows the full amount: wholesale plus 1%.
 - Register a real domain through the API. Your agent shows you the locked
   price first and registers only with your explicit approval.
-- Renew and transfer domains at the same wholesale plus 10%.
+- Renew and transfer domains at the same wholesale plus 1%.
 - Pay in crypto (USDC, ETH, or SOL) from any wallet, or pay by card. Each
   crypto order gets a unique deposit address.
 
-Pricing is simple. Wholesale cost plus 10% on registrations, renewals, and
+Pricing is simple. Wholesale cost plus 1% on registrations, renewals, and
 transfers. No subscription. No tiers. No upsells.
 
 For agents: thatmgmt-mcp is an open source MCP server that wraps the API. An
