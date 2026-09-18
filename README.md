@@ -1,6 +1,6 @@
 # thatmgmt-mcp
 
-An MCP (Model Context Protocol) server that wraps the ThatMgmt domain reseller API.
+An MCP (Model Context Protocol) server that wraps the ThatMgmt domain API.
 An AI agent in Cursor, Claude Code, or Replit can check availability, get name
 suggestions, lock a price quote, and prepare a registration, all without
 touching a dashboard.
@@ -52,7 +52,7 @@ every tool description so agents show the human the price first:
 2. **Plan.** Call `domains_prepare_registration`. It returns the
    safety-checked plan. It never executes anything.
 
-Pricing: no subscription. A flat 10% cut applies to registrations only.
+Pricing: no subscription. A flat 1% cut applies to spend-effect actions only.
 Checkout options (crypto via Privy, or card/bank fallback) are arranged
 outside this server.
 
