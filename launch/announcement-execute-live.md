@@ -43,8 +43,8 @@ Links:
 When this goes live, also update:
 
 - server.json description to mention registration execution (keep it under
-  100 characters), bump version to 0.2.0 in server.json and package.json.
+  100 characters), bump version to 0.3.0 in server.json and package.json.
 - README tool table: add the execute tools behind the approval gate.
-- Push and tag v0.2.0. The publish-mcp workflow submits the new manifest to
+- Push and tag v0.3.0. The publish-mcp workflow submits the new manifest to
   the official MCP registry automatically.
 - Refresh the Smithery, mcp.so, and Glama listings with the new description.

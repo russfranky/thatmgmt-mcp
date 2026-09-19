@@ -41,8 +41,8 @@ capability the API does not have yet.
      registry, because the manifest references it. One-time owner step, free:
      `cd ~/workspace/thatmgmt-mcp && npm publish --access public`
      (needs npm access for the @thatmgmt scope).
-  2. Per the sequencing rule, publish the execute-live 0.2.0 manifest, not
-     this 0.1.0 read-only one, unless end of day arrives first.
+  2. Per the sequencing rule, publish the execute-live 0.3.0 manifest, not
+     this 0.2.0 read-only one, unless end of day arrives first.
 - Upgrade path when execute ships: add the execute tools behind the approval
   gate, bump version to 0.2.0 in package.json and server.json, push, then
   `git tag v0.2.0 && git push origin v0.2.0`. The workflow does the rest.
