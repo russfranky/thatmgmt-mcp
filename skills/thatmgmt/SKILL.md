@@ -2,14 +2,14 @@
 name: thatmgmt
 description: >-
   use this when an agent needs a domain name: check availability, get a locked
-  quote with the 1% fee printed plainly, prepare a registration, or buy and
-  manage domains through the ThatMgmt API
+  quote with the 1% fee printed plainly, prepare a registration plan, or work
+  with portfolio and order tools through the ThatMgmt API
 portability: portable
 ---
 
 # thatmgmt
 
-Buy and manage internet infrastructure through one agent-friendly API. No signup needed to try: availability, quotes, and capabilities are public.
+Check, price, and plan domain purchases through one agent-friendly API. No signup needed to try: availability, quotes, and capabilities are public.
 
 Base URL: `https://api.thatmgmt.com`
 
@@ -27,7 +27,7 @@ These three endpoints are public, read-only, and rate-limited per IP:
    `GET /v1/public/quote?domain=example.com&period=1`
    Returns wholesale cents, the itemized 1% platform-cut line, and the total. The quote is locked: the total you see is the total you pay.
 
-Note: these public endpoints are live. If one returns 503, retry later or use the bearer path below.
+Note: these public endpoints are live. If one returns 503, retry later.
 
 ## Price math (fair and printed plainly)
 
@@ -43,15 +43,55 @@ The quote response carries `wholesaleCents`, `platformCutCents`, `platformCutBas
 
 ## Full flow with an API key (Bearer token)
 
-When you hold a tenant API key, send it as `Authorization: Bearer <key>`:
+When you hold a tenant API key, send it as `Authorization: Bearer <key>`.
+Availability and quotes stay on the public endpoints; the key unlocks the
+tenant-only tools.
 
-1. **Check availability**: `GET /v1/domains/availability?domain=example.com`
-2. **Get the locked quote**: `GET /v1/domains/quote?domain=example.com&period=1`
+1. **Check availability**: `GET /v1/public/availability?domain=example.com`
+2. **Get the locked quote**: `GET /v1/public/quote?domain=example.com&period=1`
 3. **Prepare the registration**: `GET /v1/domains/prepare-registration?domain=example.com&period=1`
    This returns the safety-checked plan. It never executes.
-4. **Purchase**: only when the transaction path is enabled for your tenant. The purchase endpoint validates the locked quote, takes crypto or card payment, and returns the order record. Until the transaction path is live, purchase calls return a validated plan and a clear "not yet enabled" answer. Nothing executes blindly.
+4. **Purchase**: not available yet. The API exposes no execute endpoints
+   today, so nothing here can register, renew, or transfer a domain. The
+   approval gate in `src/approval.js` is implemented and tested now, ready
+   for the day execute routes exist: quote id passed back plus an explicit
+   `approved: true` flag, or the call is refused. Nothing executes blindly.
 
-The same pattern covers renewals and transfers: quote first, prepare second, execute only when enabled.
+The same pattern covers renewals and transfers: quote first, prepare
+second, execute only when the platform enables it.
+
+## MCP tools (this server)
+
+These are the exact tool names the MCP server exposes. Public tools need no
+key. Tenant tools need `TMGMT_API_KEY`.
+
+Public, no key:
+
+- `tmgmt_health`: liveness check (`GET /health/live`)
+- `tmgmt_capabilities`: discover the public no-auth surface
+  (`GET /v1/public/capabilities`)
+- `domains_check_availability`: check if a domain is available
+  (`GET /v1/public/availability`)
+- `domains_get_quote`: locked price quote, step 1 of the flow
+  (`GET /v1/public/quote`)
+
+Tenant, key needed:
+
+- `domains_suggest`: suggest alternative names
+  (`GET /v1/domains/suggestions`)
+- `domains_prepare_registration`: safety-checked plan, never executes,
+  step 2 of the flow (`GET /v1/domains/prepare-registration`)
+- `domains_list`: list portfolio domains (`GET /v1/domains`)
+- `domains_dns`: inspect DNS records for a domain
+  (`GET /v1/domains/{resourceId}/dns`)
+- `portfolio_health`: portfolio health summary (`GET /v1/portfolio/health`)
+- `portfolio_renewal_risk`: renewal-risk view
+  (`GET /v1/portfolio/renewal-risk`)
+- `portfolio_exceptions`: prioritized exception queue
+  (`GET /v1/portfolio/exceptions`)
+- `orders_dry_run`: full order plan with itemized pricing, never moves money
+  (`POST /v1/orders/dry-run`)
+- `offerings`: offering coverage matrix (`GET /v1/offerings`)
 
 ## Live limits (honest)
 
