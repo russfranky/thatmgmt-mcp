@@ -98,6 +98,9 @@ use: quote id passed back plus an explicit `approved: true` flag, or the
 call is refused. The gate is implemented and tested now so the safety
 design is ready the day execute routes exist.
 
+Current release: 0.2.0 (read-only public tools plus validated plans).
+Execute tools are planned for the 0.3.0 release.
+
 ## Tools
 
 | Tool | What it does | API route | Key needed |
@@ -119,6 +122,12 @@ design is ready the day execute routes exist.
 Public tools never send an Authorization header and never ask for a key.
 Tenant tools return 401 without a key; the server tells you to set
 `TMGMT_API_KEY`. The key is sent as a Bearer token and is never logged.
+
+## Agent skill
+
+`skills/thatmgmt/SKILL.md` is the agent skill for this server: when to use
+it, the tool list, and the two-step purchase flow. Point your agent at it
+for the fastest start.
 
 ## Development
 
