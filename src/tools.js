@@ -20,6 +20,24 @@
 // Show the human the plan first. Execution happens outside this server until
 // the API exposes execute routes.
 
+import { ThatMgmtError } from "./thatmgmt.js";
+
+// Fully qualified domain name: labels of letters/digits/hyphens, at least
+// one dot, and an alphabetic TLD. Catches the common agent mistakes ("com",
+// "notadomain", "exa mple.com") before a round trip, with a clearer error
+// than the API's supplier-passthrough 503.
+const FQDN_RE = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(?:\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*\.[A-Za-z]{2,}$/;
+
+export function assertValidDomain(value, label = "domain") {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!FQDN_RE.test(trimmed)) {
+    throw new ThatMgmtError(
+      `Invalid ${label} ${JSON.stringify(value)}: pass a fully qualified domain name like "example.com".`
+    );
+  }
+  return trimmed;
+}
+
 const EXECUTE_GAP_NOTE =
   "Note: the ThatMgmt API does not expose an execute endpoint for this action " +
   "(purchase, renewal, transfer, and DNS changes are never executed by the API). " +
@@ -240,9 +258,29 @@ export const TOOL_DEFS = [
 export async function callTool(client, name, args) {
   const def = TOOL_DEFS.find((t) => t.name === name);
   if (!def) throw new Error(`Unknown tool: ${name}`);
-  const path = typeof def.path === "function" ? def.path(args) : def.path;
-  if (def.method === "POST") {
-    return client.post(path, def.params(args));
+  // Normalize and validate domain inputs before any network call.
+  const normalized = { ...args };
+  if (normalized.domain !== undefined) {
+    normalized.domain = assertValidDomain(normalized.domain, "domain");
   }
-  return client.get(path, def.params(args));
+  if (normalized.fqdn !== undefined) {
+    normalized.fqdn = assertValidDomain(normalized.fqdn, "fqdn");
+  }
+  const path = typeof def.path === "function" ? def.path(normalized) : def.path;
+  const result =
+    def.method === "POST"
+      ? await client.post(path, def.params(normalized))
+      : await client.get(path, def.params(normalized));
+  // A quote for an unavailable domain carries no price fields; say so plainly
+  // instead of returning a bare {available:false} against a description that
+  // promises wholesale/cut/total.
+  if (name === "domains_get_quote" && result && result.available === false) {
+    return {
+      ...result,
+      note:
+        "This domain is not available, so there is no price quote. " +
+        "Use domains_suggest to find alternatives, or check availability first.",
+    };
+  }
+  return result;
 }

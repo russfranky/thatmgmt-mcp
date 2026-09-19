@@ -2,6 +2,8 @@
 // Auth: TMGMT_API_KEY is sent as a Bearer token. The key is never logged.
 
 const DEFAULT_BASE_URL = "https://api.thatmgmt.com";
+const DEFAULT_TIMEOUT_MS = 30000;
+const RETRY_DELAY_MS = 400;
 
 export class ThatMgmtError extends Error {
   constructor(message, { status, code, retryable } = {}) {
@@ -34,9 +36,16 @@ export function getConfig() {
   };
 }
 
-export function createClient({ fetchFn = globalThis.fetch, env = process.env } = {}) {
+function parseTimeout(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+}
+
+export function createClient({ fetchFn = globalThis.fetch, env = process.env, timeoutMs } = {}) {
   const baseUrl = (env.TMGMT_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const apiKey = env.TMGMT_API_KEY || "";
+  const timeout = timeoutMs ?? parseTimeout(env.TMGMT_TIMEOUT_MS) ?? DEFAULT_TIMEOUT_MS;
   const redact = redactWith(apiKey);
 
   function headers() {
@@ -68,7 +77,22 @@ export function createClient({ fetchFn = globalThis.fetch, env = process.env } =
     }
   }
 
-  async function request(path, { params = {}, method = "GET", json } = {}) {
+  // Retry rule: only side-effect-free calls are retried. Today that is every
+  // GET plus the dry-run planner POST (a pure plan, never moves money).
+  // Future execute tools must NOT be retried without an idempotency key.
+  function isSideEffectFree(method, path) {
+    if (method === "GET") return true;
+    return method === "POST" && path === "/v1/orders/dry-run";
+  }
+
+  function isRetryableFailure(err) {
+    if (!(err instanceof ThatMgmtError)) return false;
+    if (err.status === 429) return true;
+    if (err.status >= 500 && err.status < 600) return err.retryable !== false;
+    return err.retryable === true && err.status === undefined;
+  }
+
+  async function attemptRequest(path, { params = {}, method = "GET", json } = {}) {
     const url = new URL(baseUrl + path);
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
@@ -78,13 +102,24 @@ export function createClient({ fetchFn = globalThis.fetch, env = process.env } =
       init.headers["Content-Type"] = "application/json";
       init.body = JSON.stringify(json);
     }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    init.signal = controller.signal;
     let res;
     try {
       res = await fetchFn(url.toString(), init);
     } catch (err) {
+      if (err && err.name === "AbortError") {
+        throw new ThatMgmtError(
+          `ThatMgmt API request timed out after ${timeout}ms (${method} ${path}).`,
+          { retryable: true }
+        );
+      }
       throw new ThatMgmtError(`Network error calling ThatMgmt API: ${redact(err.message)}`, {
         retryable: true,
       });
+    } finally {
+      clearTimeout(timer);
     }
     let body;
     const text = await res.text();
@@ -98,10 +133,26 @@ export function createClient({ fetchFn = globalThis.fetch, env = process.env } =
       throw new ThatMgmtError(redact(errorMessage(res.status, body)), {
         status: res.status,
         code,
-        retryable: res.status === 429 || (body && body.retryable === true),
+        retryable:
+          res.status === 429 ||
+          (res.status >= 500 && res.status < 600 && body.retryable !== false) ||
+          body.retryable === true,
       });
     }
     return body;
+  }
+
+  async function request(path, { params = {}, method = "GET", json } = {}) {
+    const opts = { params, method, json };
+    try {
+      return await attemptRequest(path, opts);
+    } catch (err) {
+      if (isSideEffectFree(method, path) && isRetryableFailure(err)) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        return attemptRequest(path, opts);
+      }
+      throw err;
+    }
   }
 
   return {

@@ -11,11 +11,17 @@ Machine docs: https://thatmgmt.com/llms-full.txt
 
 ## Try it with zero signup (no API key)
 
-The public reads need no key and no account. After `npm install`:
+The public reads need no key and no account. Clone and run:
 
 ```sh
-npx @thatmgmt/mcp
+git clone https://github.com/russfranky/thatmgmt-mcp.git thatmgmt-mcp
+cd thatmgmt-mcp
+npm install
+node src/index.js
 ```
+
+(Once `@thatmgmt/mcp` is published on npm, `npx -y @thatmgmt/mcp` will run
+it with zero install.)
 
 Then in your MCP client, call `tmgmt_capabilities` to see the public
 surface, `domains_check_availability` to check a name, and
@@ -59,6 +65,10 @@ npm test
 ```
 
 Optional: `TMGMT_BASE_URL` overrides the API base (default `https://api.thatmgmt.com`).
+`TMGMT_TIMEOUT_MS` overrides the per-request timeout in milliseconds (default
+`30000`). Transient failures (network errors, timeouts, 429s, retryable 5xx)
+are retried once on side-effect-free calls; the server never retries anything
+that could move money.
 
 ## The two-step purchase flow
 
@@ -113,7 +123,7 @@ Tenant tools return 401 without a key; the server tells you to set
 ## Development
 
 ```sh
-npm test   # 33 tests, mocked HTTP, no live calls
+npm test   # 47 tests, mocked HTTP, no live calls
 ```
 
 ## Registry

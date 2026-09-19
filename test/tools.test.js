@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TOOL_DEFS, callTool } from "../src/tools.js";
+import { TOOL_DEFS, callTool, assertValidDomain } from "../src/tools.js";
 import { buildGate, assertApproved } from "../src/approval.js";
 import { ThatMgmtError } from "../src/thatmgmt.js";
 
@@ -232,5 +232,65 @@ describe("approval gate", () => {
     const gate = buildGate(quote);
     const res = assertApproved({ gate, quoteId: "q-1", approved: true });
     assert.equal(res.ok, true);
+  });
+});
+
+describe("domain validation", () => {
+  it("accepts ordinary fully qualified names", () => {
+    assert.equal(assertValidDomain("example.com"), "example.com");
+    assert.equal(assertValidDomain("sub.example.co.uk"), "sub.example.co.uk");
+    assert.equal(assertValidDomain("a-b.io"), "a-b.io");
+  });
+
+  it("trims surrounding whitespace", () => {
+    assert.equal(assertValidDomain("  example.com "), "example.com");
+  });
+
+  it("rejects dotless names, bare TLDs, and malformed input", () => {
+    for (const bad of ["notadomain", "com", "exa mple.com", "-bad.com", "bad-.com", "", null, 42]) {
+      assert.throws(() => assertValidDomain(bad), ThatMgmtError, `expected reject: ${bad}`);
+    }
+  });
+
+  it("callTool rejects an invalid domain before any network call", async () => {
+    const client = stubClient();
+    await assert.rejects(
+      () => callTool(client, "domains_check_availability", { domain: "notadomain" }),
+      /Invalid domain/
+    );
+    assert.equal(client.calls.length, 0);
+  });
+
+  it("callTool validates fqdn on orders_dry_run", async () => {
+    const client = stubClient();
+    await assert.rejects(
+      () => callTool(client, "orders_dry_run", { action: "domains.register", fqdn: "nodot" }),
+      /Invalid fqdn/
+    );
+    assert.equal(client.calls.length, 0);
+  });
+
+  it("callTool sends the trimmed domain to the API", async () => {
+    const client = stubClient();
+    await callTool(client, "domains_check_availability", { domain: " example.com " });
+    assert.equal(client.calls[0].params.domain, "example.com");
+  });
+});
+
+describe("quote shaping", () => {
+  it("adds a plain note when the domain is unavailable", async () => {
+    const client = { get: async () => ({ action: "public.quote", domain: "taken.com", available: false }) };
+    const result = await callTool(client, "domains_get_quote", { domain: "taken.com" });
+    assert.equal(result.available, false);
+    assert.match(result.note, /not available/i);
+    assert.match(result.note, /no price quote/i);
+  });
+
+  it("leaves an available-domain quote untouched", async () => {
+    const fixture = { action: "public.quote", domain: "free.com", available: true, totalCents: 1312 };
+    const client = { get: async () => fixture };
+    const result = await callTool(client, "domains_get_quote", { domain: "free.com" });
+    assert.ok(!("note" in result), "no note added to a real quote");
+    assert.equal(result.totalCents, 1312);
   });
 });

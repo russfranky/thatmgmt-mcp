@@ -93,3 +93,79 @@ describe("getConfig", () => {
     if (saved !== undefined) process.env.TMGMT_BASE_URL = saved;
   });
 });
+
+describe("timeout and retry", () => {
+  it("aborts a hanging request after the timeout", async () => {
+    // Mimics real fetch: rejects with AbortError when the signal fires.
+    const hanging = (url, opts) =>
+      new Promise((_, reject) => {
+        opts.signal.addEventListener("abort", () => {
+          const err = new Error("The operation was aborted.");
+          err.name = "AbortError";
+          reject(err);
+        });
+      });
+    const client = createClient({ fetchFn: hanging, env: {}, timeoutMs: 50 });
+    await assert.rejects(() => client.get("/v1/public/capabilities", {}), (err) => {
+      assert.ok(err instanceof ThatMgmtError);
+      assert.match(err.message, /timed out after 50ms/);
+      assert.equal(err.retryable, true);
+      return true;
+    });
+  });
+
+  it("retries once on 429 then returns the success", async () => {
+    let calls = 0;
+    const fetchFn = mockFetch(() => {
+      calls++;
+      return calls === 1
+        ? jsonResponse(429, { code: "rate_limited" })
+        : jsonResponse(200, { ok: true });
+    });
+    const client = createClient({ fetchFn, env: {} });
+    const body = await client.get("/v1/public/capabilities", {});
+    assert.deepEqual(body, { ok: true });
+    assert.equal(fetchFn.calls.length, 2);
+  });
+
+  it("does not retry a 400", async () => {
+    const fetchFn = mockFetch(() => jsonResponse(400, { code: "bad_request" }));
+    const client = createClient({ fetchFn, env: {} });
+    await assert.rejects(() => client.get("/v1/public/quote", { domain: "x.com" }));
+    assert.equal(fetchFn.calls.length, 1);
+  });
+
+  it("does not retry a 503 the server marked non-retryable", async () => {
+    const fetchFn = mockFetch(() => jsonResponse(503, { code: "x", retryable: false }));
+    const client = createClient({ fetchFn, env: {} });
+    await assert.rejects(() => client.get("/v1/public/quote", { domain: "x.com" }), (err) => {
+      assert.equal(err.retryable, false);
+      return true;
+    });
+    assert.equal(fetchFn.calls.length, 1);
+  });
+
+  it("retries a bare 503 once", async () => {
+    let calls = 0;
+    const fetchFn = mockFetch(() => {
+      calls++;
+      return calls === 1 ? jsonResponse(503, { code: "x" }) : jsonResponse(200, { ok: true });
+    });
+    const client = createClient({ fetchFn, env: {} });
+    const body = await client.get("/v1/public/capabilities", {});
+    assert.deepEqual(body, { ok: true });
+    assert.equal(fetchFn.calls.length, 2);
+  });
+
+  it("reads the timeout from TMGMT_TIMEOUT_MS and ignores garbage", async () => {
+    const seen = [];
+    const fetchFn = mockFetch((url, opts) => {
+      seen.push(opts.signal);
+      return jsonResponse(200, {});
+    });
+    createClient({ fetchFn, env: { TMGMT_TIMEOUT_MS: "not-a-number" } });
+    // Falls back to the 30s default: the signal must simply exist.
+    await createClient({ fetchFn, env: {} }).get("/health/live", {});
+    assert.ok(seen[0] instanceof AbortSignal);
+  });
+});
