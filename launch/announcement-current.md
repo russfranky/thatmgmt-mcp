@@ -25,6 +25,8 @@ without an explicit approval.
 
 Full registration execution is in rollout now. Today the API is read-only plus
 validated plans. The complete path, quote to paid to registered, ships next.
+Current release: 0.2.0 (read-only public tools plus validated plans). Execute
+tools are planned for the 0.3.0 release.
 
 Links:
 

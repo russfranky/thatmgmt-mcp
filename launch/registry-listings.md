@@ -44,8 +44,8 @@ capability the API does not have yet.
   2. Per the sequencing rule, publish the execute-live 0.3.0 manifest, not
      this 0.2.0 read-only one, unless end of day arrives first.
 - Upgrade path when execute ships: add the execute tools behind the approval
-  gate, bump version to 0.2.0 in package.json and server.json, push, then
-  `git tag v0.2.0 && git push origin v0.2.0`. The workflow does the rest.
+  gate, bump version to 0.3.0 in package.json and server.json, push, then
+  `git tag v0.3.0 && git push origin v0.3.0`. The workflow does the rest.
 
 ## Smithery
 
@@ -66,6 +66,6 @@ capability the API does not have yet.
 ## When the rollout confirms execute is live
 
 Ping the distribution worker with "rollout live" and it will: add the execute
-tools behind the two-step approval gate, re-run the 25+ tests, bump to 0.2.0,
-push, tag v0.2.0 (fires the registry workflow), and submit the directory
+tools behind the two-step approval gate, re-run the 25+ tests, bump to 0.3.0,
+push, tag v0.3.0 (fires the registry workflow), and submit the directory
 listings with the execute-live copy.
