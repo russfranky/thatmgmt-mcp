@@ -1,5 +1,5 @@
 {
-  "author": "ThatMgmt <support@thatmgmt.com>",
+  "author": "ThatMgmt",
   "bin": {
     "thatmgmt-mcp": "src/index.js"
   },
