@@ -1,1 +1,45 @@
-{"bin":{"thatmgmt-mcp":"src/index.js"},"dependencies":{"@modelcontextprotocol/sdk":"^1.30.0"},"description":"MCP server wrapping the ThatMgmt domain reseller API: check availability, suggest names, get locked quotes, and prepare registrations. Read-only plus validated plans; nothing executes blindly.","engines":{"node":">=18"},"license":"MIT","main":"src/index.js","name":"@thatmgmt/mcp","scripts":{"start":"node src/index.js","test":"node --test test/*.test.js"},"type":"module","version":"0.2.0"}
+{
+  "author": "ThatMgmt <support@thatmgmt.com>",
+  "bin": {
+    "thatmgmt-mcp": "src/index.js"
+  },
+  "bugs": {
+    "url": "https://github.com/russfranky/thatmgmt-mcp/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "description": "MCP server wrapping the ThatMgmt domain reseller API: check availability, suggest names, get locked quotes, and prepare registrations. Read-only plus validated plans; nothing executes blindly.",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src/",
+    "skills/",
+    "README.md",
+    "LICENSE",
+    "server.json"
+  ],
+  "homepage": "https://github.com/russfranky/thatmgmt-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "domains",
+    "dns",
+    "thatmgmt",
+    "ai-agents"
+  ],
+  "license": "MIT",
+  "main": "src/index.js",
+  "name": "@thatmgmt/mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/russfranky/thatmgmt-mcp.git"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "type": "module",
+  "version": "0.2.0"
+}
